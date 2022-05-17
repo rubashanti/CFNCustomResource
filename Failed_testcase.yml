@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+  LambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: testfullaccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: '*'
+
+                Resource: '*'
+
+  primer:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: nodejs12.x
+      Role: !GetAtt 
+        - LambdaRole
+        - Arn
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          var aws = require('aws-sdk')
+          var response = require('cfn-response')
+          exports.handler = function(event, context) {
+              console.log("REQUEST RECEIVED:\n" + JSON.stringify(event))
+              // For Delete requests, immediately send a SUCCESS response.
+              if (event.RequestType == "Delete") {
+                  response.send(event, context, "SUCCESS")
+                  return
+              }
+              if (event.RequestType == "Create") {
+                  response.send(event, context, "FAILED")
+                  return
+              }
+              var responseStatus3 = "FAILED"
+              var responseData = {}
+              var functionName = event.ResourceProperties.FunctionName
+              var lambda = new aws.Lambda()
+              lambda.invoke({ FunctionName: functionName }, function(err, invokeResult) {
+                  if (err) {
+                      responseData = {Error: "Invoke call failed"}
+                      console.log(responseData.Error + ":\n", err)
+                  }
+                  else responseStatus = "FAILED"
+                  response.send(event, context, responseStatus, responseData)
+              })
+          }
+      Description: Invoke a function during stack creation.
+      TracingConfig:
+        Mode: Active
+  mylambdacustom1:
+    Type: 'Custom::Testme'
+    Version: '1.0'
+    Properties:
+      ServiceToken: !Join 
+        - ''
+        - - 'arn:aws:lambda:'
+          - !Ref 'AWS::Region'
+          - ':'
+          - !Ref 'AWS::AccountId'
+          - ':function:'
+          - !Ref primer
+      Apple: orange
